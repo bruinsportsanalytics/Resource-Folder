@@ -1,0 +1,135 @@
+---
+title: "Easy Webscraping with rvest Workshop"
+author: "Konner Macias"
+date: "December 3, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Our first steps:
+- Open RStudio
+- Set your working directory
+- Create a .R (script) or .Rmd (Markdown/Notebook if you want to see your visualizations)
+
+To Create a code snippet in a Markdown, press the insert button above^ or press Ctrl+Alt+I
+```{r}
+a <- 5
+print(a)
+```
+To run snippet, click the green arrow button to run that chunk.
+
+# Scraping Data
+There are a lot of different methods out there, some are pretty nasty because you are working with CSS and HTML code.  
+- Today we will go over one method, using a R package called rvest and a google chrome add-on
+
+## Steps
+If it's your first time with Rstudio and you don't have any added on packages yet, follow these steps:  
+1. Click on "Packages"->"Install"->type in "xml2" and press "install"  
+2. Repeat for "httr" and "rvest"  
+3. Now let's get an extension to help us scrape web data. Go to: https://chrome.google.com/webstore/detail/selectorgadget/mhjhnkcfbdhnjickkkdbjoemdmbfginb?hl=en
+  
+
+Once you see the icon, you're ready to go!  
+
+
+# Our Simple Sample Project: The Growth of James Harden
+## Steps
+1. Go to basketball-reference.com and type in "James Harden", go to his page. Note it is possible to get the csv for the data we want, but we are practicing scraping here!
+2. Click on the Selector Gadget you just added
+3. Click on the table of his career Per Game data
+4. Click empty cells to include and click on the yellow blocks that you don't want to include.
+5. Keep clicking until you have the entire data frame that you want highlighted!  
+
+V Save this Recipe! V
+```{r}
+library(xml2)
+library(rvest)
+james <- read_html("https://www.basketball-reference.com/players/h/hardeja01.html") %>%
+  html_nodes("#per_game .full_table .left , #per_game .poptip , #per_game .full_table .center , #per_game .full_table .right , #per_game_clone .full_table .left , #per_game_clone .center") %>%
+  html_text()
+james
+```
+The only thing you will change in the future is what the parameter is for read_html and html_nodes.
+
+# Clean and Wrange Data
+1. We want to create a clean data frame
+```{r}
+# Get column names
+col_names <- james[1:30]
+# Create empty data frame
+df <- data.frame(matrix(ncol = 30, nrow = 0))
+# Put column names in data frame
+colnames(df) <- col_names
+# Now we need to add everything else, we know there's 30 columns and 9 rows per observation
+# A for loop will do this for us
+for (i in 1:9){
+  df[i,] <- james[(30*i + 1):(30*i+30)]
+}
+
+df
+```
+
+```{r}
+
+# The class or type of each column is 'character'
+# In order to deal with numbers we must convert to numeric
+# Our second, and 6-30 columns must be converted
+df[,c(2,6:30)] <- sapply(df[,c(2,6:30)], as.numeric)
+df
+```
+# Awesome we have a clean data frame!
+Now we can create a quick bar chart of his progress in Pts/Game
+```{r}
+# Plot his Pts/Game
+barplot(df$PTS, names.arg = df$Season, main = "Harden's PPG", xlab = "Season")
+```
+## Work on Spicing up Visuals!
+Download packages like ggplot2 for better visuals!  
+# Let's create look at look at everything together
+```{r}
+# too see multiple plots in one, we use this
+par(mfrow=c(2,2))
+# Try to memorize this!
+# Let's copy what we just made as one of our plots
+barplot(df$PTS, names.arg = df$Season, main = "Harden's PPG", xlab = "Season")
+# Let's look at his 3 Pt attempts, 3Pt%, and   over time
+barplot(df$'3PA', names.arg = df$Season, main = "Harden's 3PA/G", xlab = "Season")
+barplot(df$'3P%', names.arg = df$Season, main = "Harden's 3P%/G", xlab = "Season")
+barplot(df$AST, names.arg = df$Season, main = "Harden's Ast/G", xlab = "Season")
+```
+
+# OKC vs Houston
+1. Install "fmsb" package. We're gonna create a Spider chart
+```{r}
+library(fmsb)
+# Stats we want to look at: FG%, 3PA, PTS, AST, STL
+labs = c("FG%", "3PA", "PPG", "AST", "STL")
+# let's select data only for those stats, so we look at the column numbers
+# create two different data frames
+red.df <- df[,c(11,13,30,25,26)]
+okc <- red.df[1:3,]
+houston <- red.df[4:9,]
+# get their team colors for visualization
+colors <- c("#007AC1","#CE1141")
+# To create a radar chart, we need the max and min from each column
+maxs <- unname(apply(okc, 2, function(x) max(x, na.rm = TRUE)))
+# get the means, max, and min and combine in one df
+data = data.frame(matrix(ncol=5,nrow=0))
+colnames(data) <- labs
+data[1,] = unname(apply(red.df, 2, function(x) max(x, na.rm = TRUE))) # max
+data[2,] = unname(apply(red.df, 2, function(x) min(x, na.rm = TRUE))) # min
+data[3,] = unname(apply(okc, 2, function(x) mean(x, na.rm = TRUE))) # mean of OKC
+data[4,] = unname(apply(houston, 2, function(x) mean(x, na.rm = TRUE))) # mean with OKC
+
+# change last row names
+rownames(data)[3:4] <- c("OKC","Houston")
+
+radarchart(data, title = "James Harden", pcol = colors)
+legend(-2,0, legend=c("OKC","Houston"),pch=c(15,16), col=colors, lty=c(1,2))
+```
+
+
+
+
