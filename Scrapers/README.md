@@ -1,5 +1,8 @@
 # Scraper README
 
+### all_star_clfr.ipynb
+- Small Python Webscraping example written by Konner Macias. The example scrapes a dataframe from BasketballReference.com and cleans
+
 ### BBALLREF-PLAYER-ID-SCRAPE.R
 - Creates dataframe of all Basketball Reference player IDs along with birth location for every player ever. Written by Ashwin Ghadiyaram from the Sports Analytics Club of North Carolina Univ. (Not BSA written, may have errors)
 
