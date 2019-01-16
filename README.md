@@ -14,8 +14,10 @@ If you don't want to download this entire folder as a zip, here are some steps t
 1.  Click on the `clone or download` button.
 2. Click on the `Download ZIP` button.
 
-## Navigating this Folder
+
+# Navigating this Folder
 Each folder that has a file will have a corresponding README document. This document will give extra detail about all the files in that folder for your reference.
+
 
 ### Scrapers
 Learn more about web scraping in R, or Python.
