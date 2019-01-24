@@ -1,0 +1,207 @@
+---
+title: "BSA Workshop - NFL Betting Data"
+author: "Joey Maurer"
+date: "1/23/2019"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# Introduction
+This workshop will outline the basic process of exploratory analysis and more advanced predictions using R. Most analysis projects have a similar framework. The methods here will be carried out on a relatively large data set. 
+
+# Data
+NFL betting data from 2000-2019. Includes game results, point spread, over/under, and other variables such as weather, stadium, etc.
+```{r warning = FALSE}
+library(ggplot2)
+setwd("~/Desktop/January 2019 Dataset")
+df <- read.csv("scores.csv",header=TRUE,stringsAsFactors=FALSE)
+```
+
+Let's take a look at the basic structure of the data.
+```{r}
+head(df)
+str(df)
+summary(df)
+```
+
+This is already a pretty clean data set. Often, you'll have to spend a significant chunk of time redefining and creating new variables, editing types, and tracing down mistakes/errors in the data set. This may be the most important step, and will pay off when you get to the flashier visualizations and predictive models.
+
+For now, we'll add a couple of features to this data set.
+```{r error=TRUE}
+# Specify who won the game
+determine_winner <- function(h_team,h_score,a_team,a_score) {
+  if(h_score>a_score) {
+    return(h_team)
+  } else if(a_score>h_score) {
+    return(a_team)
+  } else {
+    return("TIE")
+  }
+}
+
+df$game_winner <- apply(df,1,function(x){determine_winner(x[5],as.numeric(x[6]),x[7],as.numeric(x[8]))})
+```
+Whoops, we are already getting an error. It looks like there is an NA somewhere in one of the scores columns:
+```{r}
+df[is.na(df$score_home)|is.na(df$score_away),]
+```
+
+We see the recent playoff games are listed at the bottom with no scores. Let's remove all playoff games from this year.
+```{r}
+df <- df[!(df$schedule_season=="2018" & df$schedule_playoff==TRUE),]
+```
+
+The bottom four rows have been removed and we can run the game winner code again with no errors.
+```{r}
+df$game_winner <- apply(df,1,function(x){determine_winner(x[5],as.numeric(x[6]),x[7],as.numeric(x[8]))})
+head(df[,c(5:8,16)])
+```
+
+A few more variables...
+```{r}
+# Total points scored in game
+df$total_points <- df$score_home+df$score_away
+
+# Winner against the spread
+spread_winner <- function(h_team,h_score,a_team,a_score,favorite,spread) {
+  if(h_team==favorite) {
+    h_score <- h_score + spread
+  } else if(a_team==favorite) {
+    a_score <- a_score + spread
+  }
+  return(determine_winner(h_team,h_score,a_team,a_score))
+}
+
+df$spread_winner <- apply(df,1,function(x){spread_winner(x[5],as.numeric(x[6]),x[7],as.numeric(x[8]),x[9],as.numeric(x[10]))})
+```
+
+There are plenty of avenues to explore now. Here are a few visualizations so we can get a better look at the distributions of some of these variables.
+```{r}
+# Histogram of spreads
+ggplot(df,aes(x=spread_favorite)) +
+  geom_histogram(binwidth=1,col="black") +
+  scale_x_continuous(breaks=seq(-30,0))
+
+# Density curve for over/under
+ggplot(df,aes(x=over_under_line)) +
+  geom_line(stat="density") +
+  geom_vline(xintercept=median(df$over_under_line),linetype="dashed")
+```
+
+QUESTION: Can you generate a graph of over/under line vs actual number of points scored? (Hint: Use geom_point() in ggplot)
+
+
+
+```{r}
+ggplot(df,aes(x=over_under_line,y=total_points)) +
+  geom_point()
+```
+
+Correlation between the two.
+```{r}
+cor(df$over_under_line,df$total_points)
+```
+Moderately positive, but not as strong as you might expect...
+
+A few tables with descriptive statistics:
+
+How often does the favorite win the game?
+```{r}
+tempdf <- df[df$team_favorite!="EVEN",]
+table(tempdf$team_favorite==tempdf$game_winner) / nrow(tempdf)
+```
+How often does the favorite cover the spread?
+```{r}
+table(tempdf$team_favorite==tempdf$spread_winner) / nrow(tempdf)
+```
+Interesting. The underdog seems to have a slight advantage. People like betting the favorite. Does small favorite vs large favorite make a difference?
+```{r}
+small_fav <- tempdf[tempdf$spread_favorite>=quantile(tempdf$spread_favorite,probs=.75),]
+large_fav <- tempdf[tempdf$spread_favorite<=quantile(tempdf$spread_favorite,probs=.25),]
+
+table(small_fav$team_favorite==small_fav$spread_winner) / nrow(small_fav)
+table(large_fav$team_favorite==large_fav$spread_winner) / nrow(large_fav)
+```
+Slightly more extreme proportion for a small favorite. When the spread is small, the favorite is less likely to cover. Of course, statistical tests can be performed to check the significance of these results. Here is an example of a binomial test.
+```{r}
+binom.test(sum(tempdf$team_favorite==tempdf$spread_winner),nrow(tempdf),p=.5)
+```
+QUESTION: What is the winning percentage of a 10 point or higher favorite?
+
+
+```{r}
+ten_point_df <- tempdf[tempdf$spread_favorite<=-10,]
+table(ten_point_df$team_favorite==ten_point_df$game_winner) / nrow(ten_point_df)
+```
+Create a data frame with two columns. The first is a vector from 1 to 10 by 0.5. The second is the winning percentage of the favorite in games with that spread. You can make a helper function to compute this. Then make a barchart with the results.
+```{r}
+win_df <- data.frame(spread=seq(1,10,by=.5),pct=NA)
+compute_win_pct <- function(df,spread) {
+  tdf <- df[abs(df$spread_favorite)==spread,]
+  return(mean(tdf$team_favorite==tdf$game_winner))
+}
+win_df$pct <- sapply(win_df$spread,function(x){compute_win_pct(tempdf,x)})
+
+ggplot(data=win_df,aes(x=spread,y=pct)) +
+  geom_bar(stat="identity",fill="forestgreen",col="black") +
+  geom_hline(yintercept=.5,linetype="dashed",col="brown",size=1) +
+  coord_cartesian(ylim=c(.3,.9)) +
+  scale_x_continuous(breaks=seq(1,10,by=.5)) +
+  ggtitle("Favorite Win % by Spread NFL 2000-2018")
+```
+
+Obviously, there are much more exploratory things like this that you can do. Haven't even looked at playoffs vs regular season, weather, stadium features, or trends over time. Any of these would make a very solid basis for a data journalism article.
+
+Let's get a little fancier and try to predict the result of this year's Super Bowl: Los Angeles Rams vs New England Patriots. Patriots are -2.5 favorites as of 1/22/2019. Over/under is 57.5. -> Vegas score: 30 - 27.5 New England.
+
+Both teams against the spread this year:
+```{r}
+pats_games <- tempdf[tempdf$schedule_season=="2018" & (tempdf$team_home=="New England Patriots" | tempdf$team_away=="New England Patriots"),]
+rams_games <- tempdf[tempdf$schedule_season=="2018" & (tempdf$team_home=="Los Angeles Rams" | tempdf$team_away=="Los Angeles Rams"),]
+
+# NE
+paste(sum(pats_games$spread_winner=="New England Patriots"),"-",sum(pats_games$spread_winner!="New England Patriots"& pats_games$spread_winner!="TIE"),"-",sum(pats_games$spread_winner=="TIE"))
+
+# LAR
+paste(sum(rams_games$spread_winner=="Los Angeles Rams"),"-",sum(rams_games$spread_winner!="Los Angeles Rams" & rams_games$spread_winner!="TIE"),"-",sum(rams_games$spread_winner=="TIE"))
+```
+Note: The Patriots and Rams were favored in every game they played this season.
+
+Build a linear regression model to predict the total amount of points scored in the game.
+```{r}
+# Variables to work with: Playoff game, spread, over/under line, weather
+lin_reg_df <- df[,c(4,10,11,14,17)]
+model <- lm(total_points~.,data=lin_reg_df)
+summary(model)
+```
+Not a very good model. Only over/under is a significant predictor and the R^2 is very low. The diagnostics tell a similar story.
+```{r}
+plot(model)
+```
+We can also get a predicted value of the total points scored:
+```{r}
+predict_df <- data.frame(schedule_playoff=TRUE,spread_favorite=-2.5,over_under_line=57.5,weather_temperature=54)
+predict_df$pred_total_pts <- predict(model,newdata=predict_df,type="response")
+predict_df
+```
+This model predicts 59.3 total points. 
+
+Build a logistic regression model to predict the probability of a Patriots win (that is, the favorite wins the game).
+```{r}
+log_reg_df <- df[,c(4,9,10,11,14,16)]
+log_reg_df$result <- apply(log_reg_df,1,function(x){if(x[2]==x[6]) return(1) else return(0)})
+model2 <- glm(result~schedule_playoff+spread_favorite+over_under_line+weather_temperature,data=log_reg_df)
+summary(model2)
+```
+Again, not the best model but this gives you a basic idea of the process. We can get a predicted probability:
+```{r}
+predict_df2 <- data.frame(schedule_playoff=TRUE,spread_favorite=-2.5,over_under_line=57.5,weather_temperature=54)
+predict_df2$pred_probability <- predict(model2,newdata=predict_df2,type="response")
+predict_df2
+```
+This model gives the Patriots a 58.1% chance of winning the Super Bowl.
+
+Hopefully this has given you some ideas for a potential article. I encourage you to keep playing around with the data. Hands on projects are one of the best ways to learn and become better at programming.
+
+Thank you everyone!
