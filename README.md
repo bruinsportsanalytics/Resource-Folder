@@ -1,5 +1,5 @@
 # Resource Folder
-BSA's Resource Folder to get help on anything you may need to complete a sports analytics project.
+BSA's Resource Folder's is here to provide you with everything you'll need to complete a sports analytics project.
 
 This is currently a work in progress...
 
@@ -32,7 +32,7 @@ Get some previous Python or R examples or workshops we have done in the past as 
 Get data by Sport, or get links to access data from online for free.
 
 ### Etc
-Some random files we think are helpful.
+Some random files we think are helpful. If you are a BSA Team member, there's an informational doc intended for you.
 
 ## Questions?
 Please email bruinsportsanalyticsclub@gmail.com if you have issues or questions.
